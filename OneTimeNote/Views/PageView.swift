@@ -5,6 +5,7 @@ struct PageView: View {
     @State private var currentText: String = ""
     @State private var showingTearConfirm = false
     @State private var showingNotebookList = false
+    @State private var showingCharacterLimitAlert = false
     @FocusState private var isTextFieldFocused: Bool
     
     var currentPage: Page? {
@@ -47,6 +48,11 @@ struct PageView: View {
             .navigationBarHidden(true)
             .onAppear {
                 loadCurrentPage()
+            }
+            .alert("글자 수 제한", isPresented: $showingCharacterLimitAlert) {
+                Button("확인", role: .cancel) { }
+            } message: {
+                Text("페이지당 최대 500자까지 작성할 수 있습니다.")
             }
         }
         .navigationViewStyle(StackNavigationViewStyle())
@@ -119,30 +125,51 @@ struct PageView: View {
     }
     
     private func editorView(page: Page) -> some View {
-        VStack {
+        VStack(spacing: 0) {
             if page.canEdit {
-                TextEditor(text: $currentText)
-                    .padding(4)
-                    .focused($isTextFieldFocused)
-                    .onChange(of: currentText) { newValue in
-                        if newValue.count <= Page.maxCharacters {
-                            notebookManager.updateCurrentPageContent(newValue)
-                        } else {
-                            currentText = String(newValue.prefix(Page.maxCharacters))
-                        }
+                // 수정 불가 텍스트 뷰 사용
+                ImmutableTextView(
+                    text: $currentText,
+                    isEditable: true,
+                    maxCharacters: Page.maxCharacters,
+                    onTextChange: { newText in
+                        notebookManager.updateCurrentPageContent(newText)
+                    },
+                    onCharacterLimitReached: {
+                        showingCharacterLimitAlert = true
                     }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(UIColor.secondarySystemBackground))
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color(UIColor.separator), lineWidth: 1)
+                )
+                
+                // 안내 메시지
+                Text("한 번 입력한 내용은 수정할 수 없습니다")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 8)
             } else {
+                // 읽기 전용 뷰
                 ScrollView {
                     Text(page.content)
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .background(Color(UIColor.tertiarySystemBackground))
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color(UIColor.separator), lineWidth: 1)
+                )
                 
                 Text("이 페이지는 작성이 완료되어 수정할 수 없습니다")
                     .font(.footnote)
                     .foregroundColor(.secondary)
-                    .padding(.top, 10)
+                    .padding(.top, 8)
             }
         }
         .padding()
